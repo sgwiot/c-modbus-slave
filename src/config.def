@@ -1,5 +1,8 @@
 /* CFG(section, name, default) */
-CFG(protocol, version, "0")
-CFG(user, name, "Fatty Lumpkin")
-CFG(user, email, "fatty@lumpkin.com")
+CFG(connection, type, "tcp")
+CFG(para, port, "552")
+CFG(para, startbit, "0")
+CFG(para, stopbit, "10")
+CFG(para, startreg, "0")
+CFG(para, stopreg, "10")
 #undef CFG
