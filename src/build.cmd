@@ -6,3 +6,5 @@ gcc modbus_tcp_slave_server.c -o tcp-slave-temp -Wall -std=c99 `pkg-config --lib
 gcc ini_example.c ini.c  -o init_example
 gcc ini.c ini_xmacros.c -o mac
 gcc ini.c modbus_tcp_slave_server.c -o tcp-slave-temp -Wall -std=c99 `pkg-config --libs --cflags libmodbus` 
+gcc ini.c modbus_tcp_slave_server.c -o tcp-slave-temp -Wall -std=c99 `pkg-config --libs --cflags libmodbus` -lpthread
+gcc log.c ini.c modbus_tcp_slave_server.c -o tcp-slave-temp -Wall -std=c99 `pkg-config --libs --cflags libmodbus` -lpthread
