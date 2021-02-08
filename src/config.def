@@ -1,8 +1,27 @@
 /* CFG(section, name, default) */
 CFG(connection, type, "tcp")
-CFG(para, port, "552")
-CFG(para, startbit, "0")
-CFG(para, stopbit, "10")
-CFG(para, startreg, "0")
-CFG(para, stopreg, "10")
+/* tcp: port, rtu:serial device node */
+CFG(connection, port, "552")
+
+/* slave ID */
+CFG(connection, slaveid, "1")
+
+CFG(connection, rs232, "1")
+
+CFG(connection, baud, "9600")
+/* RS232 8N1 */
+CFG(connection, check, "N")
+CFG(connection, stopbit, "0")
+CFG(connection, databit, "0")
+
+/* CFG(connection, 485, "0") */
+/* CFG(connection, port, "/dev/ttyUSB0") */
+
+CFG(connection, datadebug, "1")
+
+CFG(para, bitbegin, "0")
+CFG(para, bitend, "0")
+CFG(para, regbegin, "0")
+CFG(para, regend, "0")
+
 #undef CFG

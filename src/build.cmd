@@ -8,3 +8,6 @@ gcc ini.c ini_xmacros.c -o mac
 gcc ini.c modbus_tcp_slave_server.c -o tcp-slave-temp -Wall -std=c99 `pkg-config --libs --cflags libmodbus` 
 gcc ini.c modbus_tcp_slave_server.c -o tcp-slave-temp -Wall -std=c99 `pkg-config --libs --cflags libmodbus` -lpthread
 gcc log.c ini.c modbus_tcp_slave_server.c -o tcp-slave-temp -Wall -std=c99 `pkg-config --libs --cflags libmodbus` -lpthread
+gcc log.c ini.c modbus_tcp_slave_server.c -o tcp-slave-temp -Wall -std=c99 `pkg-config --libs --cflags libmodbus` -lpthread -DLOG_USE_COLOR
+gdb --args ./tcp-slave-temp test.ini 
+gcc log.c ini.c modbus_tcp_slave_server.c -o tcp-slave-temp -Wall -std=c99 `pkg-config --libs --cflags libmodbus` -lpthread -DLOG_USE_COLOR -g
