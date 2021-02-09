@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <asm/ioctls.h>
 
-#define UART_PATH "/dev/ttyUSB1"
+#define UART_PATH "/dev/ttyUSB0"
 
 /*
  * Modbus slave (server):
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]){
 	modbus_mapping_t *mb_mapping;
 
 	//Set uart configuration and store it into the modbus context structure
-	ctx = modbus_new_rtu(UART_PATH, 115200, 'N', 8, 1);
+	ctx = modbus_new_rtu(UART_PATH, 9600, 'N', 8, 1);
 	if (ctx == NULL) {
 		perror("Unable to create the libmodbus context");
 		return -1;
@@ -55,7 +55,7 @@ int main(int argc, char *argv[]){
 	request= malloc(MODBUS_RTU_MAX_ADU_LENGTH);
 	modbus_set_debug(ctx, TRUE);
 
-	ret = modbus_set_slave(ctx, 1);//Set slave address
+	ret = modbus_set_slave(ctx, 3);//Set slave address
 	if(ret < 0){
 		perror("modbus_set_slave error");
 		return -1;
@@ -79,8 +79,8 @@ int main(int argc, char *argv[]){
 
 	//Init the modbus mapping structure, will contain the data
 	//that will be read/write by a client.
-	mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0,
-					MODBUS_MAX_READ_REGISTERS, 0);
+	//mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0, MODBUS_MAX_READ_REGISTERS, 0);
+	mb_mapping = modbus_mapping_new(0, 0, 100, 100);
 	if(mb_mapping == NULL){
 		perror("Cannot allocate mb_mapping");
 		return -1;

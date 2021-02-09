@@ -211,8 +211,10 @@ void *thread(void *para) {
             //because my uart is RS232 only...
             if ( !strcmp("1", p->connection_rs232) ) {
                 ret = modbus_rtu_set_serial_mode(ctx, MODBUS_RTU_RS232);
+                log_strace("RTU is RS232 Mode");
             } else {
                 ret = modbus_rtu_set_serial_mode(ctx, MODBUS_RTU_RS485);
+                log_strace("RTU is RS485 Mode");
             }
             if(ret < 0){
                 log_error("modbus_rtu_set_serial_mode error\n");
@@ -224,11 +226,14 @@ void *thread(void *para) {
         //Set debug log data
         if (strcmp("0", p->connection_datadebug)) {
             modbus_set_debug(ctx, TRUE);
+            log_strace("Enable Debug Mode");
         }
         ret = modbus_connect(ctx);
         if(ret < 0){
             log_error("modbus_connect error");
             goto THREAD_EXIT;
+        } else {
+            log_strace("Connected OK");
         }
     }
 
