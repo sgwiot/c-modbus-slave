@@ -78,10 +78,21 @@ void update_temps(modbus_mapping_t *mb_mapping)
 #define TCP 1
 #define RTU 2
 #include<pthread.h>
+#include<errno.h>
 void *thread(void *para) {
-    //pthread_setname_np()
-
     config *p = (config *)(para);
+
+    //To large would fail, such as 80
+    char name[40];
+    snprintf(name, 40, "%s-%s-%s", p->connection_slaveid, p->connection_type, p->connection_port);
+    int ret,rc;
+	ret = pthread_setname_np(pthread_self(), name);
+	if (ret == 0) {
+		//log_trace("Thread set name success, tid=%llu", pthread_self());
+		log_trace("Thread set name success");
+    } else {
+        log_error("Thread set name Error:%s !!",name);
+    }
 #if 0
     printf("------thread---------\n");
     printf("type: %s\n", p->connection_type);
@@ -101,15 +112,6 @@ void *thread(void *para) {
     } else {
         log_error("unsupport type!\n");
         goto THREAD_EXIT;
-    }
-    char name[80];
-    snprintf(name, 80, "slave-%s-%s-%s", p->connection_slaveid, p->connection_type, p->connection_port);
-    int ret,rc;
-	ret = pthread_setname_np(pthread_self(), name);
-	if (ret == 0) {
-		log_trace("Thread set name success, tid=%llu", pthread_self());
-    } else {
-        log_error("Thread set name Error");
     }
     log_trace("beging loop:%s", name);
 
@@ -265,10 +267,9 @@ THREAD_EXIT:
         pthread_exit(NULL);
 }
 int main(int argc, char* argv[]) {
-
-    //log_set_quiet(LOG_SILIENCE);
-    log_trace("Argc is:%d", argc);
+    log_set_quiet(LOG_SILIENCE);
 #if 0
+    log_trace("Argc is:%d", argc);
     if (ini_parse(argv[1], handler, &Config) < 0) {
             printf("Can't load 'test.ini', using defaults\n");
         }
