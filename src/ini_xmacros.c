@@ -1,5 +1,3 @@
-/* Parse a configuration file into a struct using X-Macros */
-
 #include <stdio.h>
 #include <string.h>
 #include "ini.h"
@@ -84,27 +82,28 @@ void *thread(void *para) {
     //pthread_setname_np()
 
     config *p = (config *)(para);
+#if 0
     printf("------thread---------\n");
     printf("type: %s\n", p->connection_type);
     printf("port: %s\n", p->connection_port);
     printf("slaveid: %s\n", p->connection_slaveid);
     printf("---------------\n");
+#endif
     int type = -1;
     //log_trace("type: %s\n", p->connection_type );
     log_trace("type: %s\n", p->connection_type );
     if (!strcmp("tcp", p->connection_type)) {
         log_trace("supported type:tcp\n");
         type = TCP;
-    }
-    else if (!strcmp("rtu", p->connection_type)) {
+    } else if (!strcmp("rtu", p->connection_type)) {
         log_trace("supported type:rtu\n");
         type = RTU;
     } else {
         log_error("unsupport type!\n");
         goto THREAD_EXIT;
     }
-    char name[20];
-    sprintf(name, "slave-%s-%s", p->connection_slaveid, p->connection_type);
+    char name[80];
+    snprintf(name, 80, "slave-%s-%s-%s", p->connection_slaveid, p->connection_type, p->connection_port);
     int ret,rc;
 	ret = pthread_setname_np(pthread_self(), name);
 	if (ret == 0) {
@@ -112,11 +111,8 @@ void *thread(void *para) {
     } else {
         log_error("Thread set name Error");
     }
-#if 0
-	prctl(PR_GET_NAME, now_name);
-	log_strace("bmic:bmic::%s, prctl setname ret =%d, tid=%llu", __FUNCTION__, ret, pthread_self());
-#endif
-    log_trace("beging loop\n");
+    log_trace("beging loop:%s", name);
+
     uint8_t *request;//Will contain internal libmodubs data from a request that must be given back to answer
     modbus_t *ctx;
     modbus_mapping_t *mb_mapping;
@@ -125,8 +121,8 @@ void *thread(void *para) {
     //Init the modbus mapping structure, will contain the data
     //that will be read/write by a client.
     //mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0, MODBUS_MAX_READ_REGISTERS, 0);
-    //mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0, MODBUS_MAX_READ_REGISTERS, 0);
-    mb_mapping = modbus_mapping_new(0, 0, 500, 500);
+    mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0, MODBUS_MAX_READ_REGISTERS, 0);
+    //mb_mapping = modbus_mapping_new(0, 0, 500, 500);
     if(mb_mapping == NULL){
         log_error("Cannot allocate mb_mapping");
         goto THREAD_EXIT;
@@ -245,13 +241,14 @@ void *thread(void *para) {
             goto THREAD_EXIT;
         }
 
-        log_trace("SLAVE:%d", slaveid );
-        printf("regs[] =\t");
+        log_trace("%s: received data length=%d",name, rc);
+#if 0
+        //printf("regs[] =\t");
         for(int i = 1; i != 11; i++) { // looks like 1..n index
             printf("%d ", mb_mapping->tab_registers[i]);
         }
-        //log_trace("\n");
-        //log_trace("Request received rc= %d",rc);
+        printf("\n");
+#endif
 
         update_temps(mb_mapping);
         ret = modbus_reply(ctx,request,rc,mb_mapping);//rc, request size must be given back to modbus_reply as well as "request" data
@@ -272,8 +269,6 @@ int main(int argc, char* argv[]) {
     //log_set_quiet(LOG_SILIENCE);
     log_trace("Argc is:%d", argc);
 #if 0
-    //parse all the ini files
-    //for ( int j = 1; j < argc; j++ ) {
     if (ini_parse(argv[1], handler, &Config) < 0) {
             printf("Can't load 'test.ini', using defaults\n");
         }
@@ -285,6 +280,7 @@ int main(int argc, char* argv[]) {
     printf("---------------\n");
 #endif
 
+    pthread_t thread_id[MAX_THREAD];
     if ( argc > 1 ) {
         //parse all the ini files
         for ( int j = 1; j < argc; j++ ) {
@@ -293,10 +289,10 @@ int main(int argc, char* argv[]) {
                 log_trace("----- Can't load:%s, using defaults -------", argv[j]);
             } else {
                 //log_trace("INI parse %s Done.", argv[j]);
-                pthread_t thread_id[MAX_THREAD];
                 //log_trace("before create pthread\n");
                 pthread_create(&(thread_id[j-1]), NULL, thread, &(Configs[j-1]));
                 config *p = &(Configs[j-1]);
+#if 0
                 dump_config(p);
                 log_trace("Connection is:%s\n", p->connection_type);
                 printf("------test---------\n");
@@ -304,10 +300,17 @@ int main(int argc, char* argv[]) {
                 printf("port: %s\n", p->connection_port);
                 printf("slaveid: %s\n", p->connection_slaveid);
                 printf("---------------\n");
+#endif
             }
         }
     }
+
     while(1) {
+
+        for ( int j = 1; j < argc; j++ ) {
+            pthread_join(thread_id[j-1],NULL);
+        }
+
         sleep(1);
     }
     return 0;
