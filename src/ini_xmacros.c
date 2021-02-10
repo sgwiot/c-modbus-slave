@@ -1,7 +1,4 @@
 #include <stdio.h>
-#include <string.h>
-#include "ini.h"
-#include "log.h"
 #include <modbus.h>
 #include <stdio.h>
 #include <string.h>
@@ -14,7 +11,13 @@
 #include <unistd.h>
 #include <string.h>
 
+#include<pthread.h>
+
+#include "ini.h"
 #include "log.h"
+
+#include <errno.h>
+
 #define LOG_SILIENCE FALSE
 
 /* define the config struct type */
@@ -77,22 +80,9 @@ void update_temps(modbus_mapping_t *mb_mapping)
 
 #define TCP 1
 #define RTU 2
-#include<pthread.h>
-#include<errno.h>
 void *thread(void *para) {
     config *p = (config *)(para);
 
-    //To large would fail, such as 80
-    char name[40];
-    snprintf(name, 40, "%s-%s-%s", p->connection_slaveid, p->connection_type, p->connection_port);
-    int ret,rc;
-	ret = pthread_setname_np(pthread_self(), name);
-	if (ret == 0) {
-		//log_trace("Thread set name success, tid=%llu", pthread_self());
-		log_trace("Thread set name success");
-    } else {
-        log_error("Thread set name Error:%s !!",name);
-    }
 #if 0
     printf("------thread---------\n");
     printf("type: %s\n", p->connection_type);
@@ -100,21 +90,59 @@ void *thread(void *para) {
     printf("slaveid: %s\n", p->connection_slaveid);
     printf("---------------\n");
 #endif
+    /*********************************************************************
+    * get type
+    *********************************************************************/
     int type = -1;
     //log_trace("type: %s\n", p->connection_type );
-    log_trace("type: %s\n", p->connection_type );
+    log_trace("type: %s", p->connection_type );
     if (!strcmp("tcp", p->connection_type)) {
-        log_trace("supported type:tcp\n");
+        log_trace("supported type:tcp");
         type = TCP;
     } else if (!strcmp("rtu", p->connection_type)) {
-        log_trace("supported type:rtu\n");
+        log_trace("supported type:rtu");
         type = RTU;
     } else {
-        log_error("unsupport type!\n");
+        log_error("unsupport type!");
         goto THREAD_EXIT;
     }
-    log_trace("beging loop:%s", name);
+    /*********************************************************************
+    * Set thread name
+    *********************************************************************/
+    //To large would fail, such as 80
+    // 255-rtu-/dev/ttyUSB127 , max 22
+    char name[24] = {0};
+    char *device_path = strdup(p->connection_port);
+    if(device_path == NULL) {
+        log_error("strdup error for device path");
+    }
+    //char str[] ="1,2,3,4,5";
+    char *pt;
+    if (type == RTU) {
+        pt = strtok (device_path,"/");
+        while (pt != NULL) {
+            //int a = atoi(pt);
+            //printf("%d\n", a);
+            snprintf(name, 24, "%s-%s-%s", p->connection_slaveid, p->connection_type, pt);
+            pt = strtok (NULL, "/");
+        }
+    } else {
+        snprintf(name, 24, "%s-%s-%s", p->connection_slaveid, p->connection_type, p->connection_port);
+    }
+    int ret,rc;
+    #define _GNU_SOURCE             /* See feature_test_macros(7) */
+	ret = pthread_setname_np(pthread_self(), name);
+	if (ret == 0) {
+		//log_trace("Thread set name success, tid=%llu", pthread_self());
+		log_trace("Thread set name(%s) success", name);
+    } else {
+        log_error("Thread set name Error:%s !!",name);
+    }
+    //log_trace("beging loop:%s", name);
 
+    /*********************************************************************
+    * new mapping
+    *********************************************************************/
     uint8_t *request;//Will contain internal libmodubs data from a request that must be given back to answer
     modbus_t *ctx;
     modbus_mapping_t *mb_mapping;
@@ -123,20 +151,15 @@ void *thread(void *para) {
     //Init the modbus mapping structure, will contain the data
     //that will be read/write by a client.
     //mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0, MODBUS_MAX_READ_REGISTERS, 0);
-    mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0, MODBUS_MAX_READ_REGISTERS, 0);
-    //mb_mapping = modbus_mapping_new(0, 0, 500, 500);
+    mb_mapping = modbus_mapping_new(500, 500, 500, 500);
     if(mb_mapping == NULL){
         log_error("Cannot allocate mb_mapping");
         goto THREAD_EXIT;
     }
     int slaveid = -1;
     if (type == TCP) {
-        //log_trace("beging loop:TCP\n");
-        //Set uart configuration and store it into the modbus context structure
         int port = atoi(p->connection_port);
         ctx = modbus_new_tcp("0.0.0.0", port);
-        //ctx = modbus_new_tcp("192.168.199.245", 502);
-        //ctx = modbus_new_rtu(UART_PATH, 115200, 'N', 8, 1);
         if (ctx == NULL) {
             log_error("Unable to create the libmodbus context");
             goto THREAD_EXIT;
@@ -168,7 +191,6 @@ void *thread(void *para) {
     }
     //Set uart configuration and store it into the modbus context structure
     if ( type == RTU ) {
-        log_trace("beging loop:TCP\n");
         //ctx = modbus_new_rtu(p->connection_port, p->connection_baud, 'N', 8, 1);
         int baud = atoi(p->connection_baud);
         int databit = atoi(p->connection_databit);
@@ -206,36 +228,53 @@ void *thread(void *para) {
             log_error("modbus_set_slave error");
             goto THREAD_EXIT;
         }
-        {
-            //Works fine without it, I got a "Bad file descriptor" with it, likely
-            //because my uart is RS232 only...
-            if ( !strcmp("1", p->connection_rs232) ) {
-                ret = modbus_rtu_set_serial_mode(ctx, MODBUS_RTU_RS232);
-                log_strace("RTU is RS232 Mode");
-            } else {
-                ret = modbus_rtu_set_serial_mode(ctx, MODBUS_RTU_RS485);
-                log_strace("RTU is RS485 Mode");
-            }
-            if(ret < 0){
-                log_error("modbus_rtu_set_serial_mode error\n");
-                goto THREAD_EXIT;
-            }
-            //Modbus is configured, now it must opens the UART (even if a connexion
-            //does not make sense in the modbus protocol.
-        }
+        //HeXiongjun: This is a must, otherwise would show timeout error : ERROR Connection timed out: select
+        //  Ref:
+        //      https://github.com/stephane/libmodbus/issues/382
+        //      https://stackoverflow.com/questions/34387820/multiple-rs485-slaves-with-libmodbus
+        //usleep(0.005 * 1000000);
+        sleep(1);
         //Set debug log data
         if (strcmp("0", p->connection_datadebug)) {
             modbus_set_debug(ctx, TRUE);
-            log_strace("Enable Debug Mode");
+            log_trace("Enable Debug Mode");
+        } else {
+            modbus_set_debug(ctx, FALSE);
+            log_trace("Disable Debug Mode");
         }
         ret = modbus_connect(ctx);
         if(ret < 0){
             log_error("modbus_connect error");
             goto THREAD_EXIT;
         } else {
-            log_strace("Connected OK");
+            log_trace("Connected OK");
+        }
+        {
+            //Works fine without it, I got a "Bad file descriptor" with it, likely
+            //because my uart is RS232 only...
+            if ( !strcmp("1", p->connection_rs232) ) {
+                //ret = modbus_rtu_set_serial_mode(ctx, MODBUS_RTU_RS232);
+                log_trace("RTU is RS232 Mode, ignore the setting");
+            } else {
+                ret = modbus_rtu_set_serial_mode(ctx, MODBUS_RTU_RS485);
+                log_trace("RTU RS485 Mode Set");
+            }
+            if(ret < 0){
+                int errnum = errno;
+                log_error("modbus_rtu_set_serial_mode error :%d, error string:%s", errno, strerror( errnum ));
+#if 0
+                fprintf(stderr, "Value of errno: %d\n", errno);
+                perror("Error printed by perror");
+                fprintf(stderr, "Error opening file: %s\n", strerror( errnum ));
+#endif
+                //log_trace("Error:%d, error string:%s", errno, strerror( errnum ));
+
+                //ToBeVerify: When is RS232, this may fail, but still working
+                goto THREAD_EXIT;
+            }
         }
     }
+    sleep(1);
 
     while(1) {
         do {
@@ -251,13 +290,15 @@ void *thread(void *para) {
         log_trace("%s: received data length=%d",name, rc);
 #if 0
         //printf("regs[] =\t");
-        for(int i = 1; i != 11; i++) { // looks like 1..n index
+        for(int i = 0; i < 2; i++) { // looks like 1..n index
             printf("%d ", mb_mapping->tab_registers[i]);
         }
         printf("\n");
 #endif
 
+#if 0
         update_temps(mb_mapping);
+#endif
         ret = modbus_reply(ctx,request,rc,mb_mapping);//rc, request size must be given back to modbus_reply as well as "request" data
         if(ret < 0){
             log_error("modbus reply error, continue next receive... !!!");

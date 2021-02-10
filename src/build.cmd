@@ -13,3 +13,6 @@ gdb --args ./tcp-slave-temp test.ini
 gcc log.c ini.c modbus_tcp_slave_server.c -o tcp-slave-temp -Wall -std=c99 `pkg-config --libs --cflags libmodbus` -lpthread -DLOG_USE_COLOR -g
 gcc ini_xmacros.c ini.c log.c -o mac -std=c99 `pkg-config --libs --cflags libmodbus` -lpthread
 ./mac test.ini test1.ini test2.ini 
+gcc ini_xmacros.c ini.c log.c -o mac -std=gnu99 `pkg-config --libs --cflags libmodbus` -lpthread
+gcc ini_xmacros.c ini.c log.c -o mac -std=gnu99 `pkg-config --libs --cflags libmodbus` -lpthread
+socat -d -d pty,raw,echo=0 pty,raw,echo=0
