@@ -18,6 +18,7 @@
 
 #include <errno.h>
 
+int header_length;
 #define LOG_SILIENCE FALSE
 
 /* define the config struct type */
@@ -58,8 +59,25 @@ void dump_config(config *cfg)
     #include "config.def"
 }
 
-void update_temps(modbus_mapping_t *mb_mapping)
-{
+void update_holding(modbus_mapping_t *mb_mapping) {
+    FILE *f1,*f2;
+    uint32_t t1,t2;
+    //size_t s;
+
+    f1 = fopen("/sys/class/thermal/thermal_zone0/temp","r");
+    fscanf(f1,"%"PRIu32,&t1);
+    t1 = t1/1000;
+    mb_mapping->tab_registers[0] =(uint16_t) t1;
+
+    f2 = fopen("/sys/class/thermal/thermal_zone1/temp","r");
+    fscanf(f2,"%"PRIu32,&t2);
+    t2 = t2/1000;
+    mb_mapping->tab_registers[1] =(uint16_t) t2;
+
+    fclose(f1);
+    fclose(f2);
+}
+void update_temps(modbus_mapping_t *mb_mapping) {
     FILE *f1,*f2;
     uint32_t t1,t2;
     //size_t s;
@@ -143,19 +161,11 @@ void *thread(void *para) {
     /*********************************************************************
     * new mapping
     *********************************************************************/
-    uint8_t *request;//Will contain internal libmodubs data from a request that must be given back to answer
-    modbus_t *ctx;
-    modbus_mapping_t *mb_mapping;
+    uint8_t *request = NULL;//Will contain internal libmodubs data from a request that must be given back to answer
+    modbus_t *ctx = NULL;
+    modbus_mapping_t *mb_mapping = NULL;
     int s = -1;
 
-    //Init the modbus mapping structure, will contain the data
-    //that will be read/write by a client.
-    //mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0, MODBUS_MAX_READ_REGISTERS, 0);
-    mb_mapping = modbus_mapping_new(500, 500, 500, 500);
-    if(mb_mapping == NULL){
-        log_error("Cannot allocate mb_mapping");
-        goto THREAD_EXIT;
-    }
     int slaveid = -1;
     if (type == TCP) {
         int port = atoi(p->connection_port);
@@ -167,7 +177,7 @@ void *thread(void *para) {
 
         request = malloc(MODBUS_TCP_MAX_ADU_LENGTH);
         if(NULL == request) {
-            log_error("malloc Error");
+            log_error("TCP malloc Error");
             goto THREAD_EXIT;
         } else {
             log_trace("malloc OK");
@@ -179,6 +189,14 @@ void *thread(void *para) {
         ret = modbus_set_slave(ctx, slaveid);//Set slave address
         if(ret < 0){
             log_error("modbus_set_slave error");
+            goto THREAD_EXIT;
+        }
+        //Init the modbus mapping structure, will contain the data
+        //that will be read/write by a client.
+        mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0, MODBUS_MAX_READ_REGISTERS, 0);
+        //mb_mapping = modbus_mapping_new(500, 500, 500, 500);
+        if(mb_mapping == NULL){
+            log_error("Cannot allocate mb_mapping");
             goto THREAD_EXIT;
         }
         //Wait for connection
@@ -214,11 +232,12 @@ void *thread(void *para) {
             goto THREAD_EXIT;
         }
 
-        request= malloc(MODBUS_RTU_MAX_ADU_LENGTH * 2);
+        //request= malloc(MODBUS_RTU_MAX_ADU_LENGTH * 2);
+        request= malloc(MODBUS_RTU_MAX_ADU_LENGTH);
         if(NULL == request) {
-            log_error("malloc Error");
+            log_error("RTU malloc Error");
         } else {
-            log_trace("malloc OK");
+            log_trace("RTU malloc OK");
         }
         modbus_set_debug(ctx, TRUE);
 
@@ -226,6 +245,14 @@ void *thread(void *para) {
         ret = modbus_set_slave(ctx, slaveid);//Set slave address
         if(ret < 0){
             log_error("modbus_set_slave error");
+            goto THREAD_EXIT;
+        }
+        //Init the modbus mapping structure, will contain the data
+        //that will be read/write by a client.
+        mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0, MODBUS_MAX_READ_REGISTERS, 0);
+        //mb_mapping = modbus_mapping_new(500, 500, 500, 500);
+        if(mb_mapping == NULL){
+            log_error("Cannot allocate mb_mapping");
             goto THREAD_EXIT;
         }
         //HeXiongjun: This is a must, otherwise would show timeout error : ERROR Connection timed out: select
@@ -274,34 +301,38 @@ void *thread(void *para) {
             }
         }
     }
+    header_length = modbus_get_header_length(ctx);
     sleep(1);
-
+    uint8_t count = 0;
     while(1) {
-        do {
-            //log_trace("modbus_receive begin");
-            rc = modbus_receive(ctx, request);
-        } while (rc == 0);
+        count ++;
+        //log_trace("modbus_receive begin");
+        rc = modbus_receive(ctx, request);
+        //log_trace("received rc:%d", rc);
 
-        if(rc < 0){
-            log_error("Error in modbus receive");
+        if(rc == -1){
+            log_error("Error in modbus receive:%d, errno:%d", rc, errno);
             goto THREAD_EXIT;
         }
 
         log_trace("%s: received data length=%d",name, rc);
 #if 0
         //printf("regs[] =\t");
-        for(int i = 0; i < 2; i++) { // looks like 1..n index
+        for(int i = 1; i < 9; i++) { // looks like 1..n index
             printf("%d ", mb_mapping->tab_registers[i]);
         }
         printf("\n");
 #endif
-
+        mb_mapping->tab_registers[0] = count;
+        mb_mapping->tab_registers[1] = count;
+        mb_mapping->tab_registers[2] = count;
+        mb_mapping->tab_registers[3] = count;
 #if 0
         update_temps(mb_mapping);
 #endif
         ret = modbus_reply(ctx,request,rc,mb_mapping);//rc, request size must be given back to modbus_reply as well as "request" data
         if(ret < 0){
-            log_error("modbus reply error, continue next receive... !!!");
+            log_error("modbus reply error:%d, continue next receive... !!!", ret);
             //goto THREAD_EXIT;
         }
     }
@@ -310,8 +341,10 @@ THREAD_EXIT:
         modbus_mapping_free(mb_mapping);
         modbus_close(ctx);
         modbus_free(ctx);
+        free(request);
         pthread_exit(NULL);
 }
+
 int main(int argc, char* argv[]) {
     log_set_quiet(LOG_SILIENCE);
 #if 0
