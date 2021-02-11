@@ -16,3 +16,5 @@ gcc ini_xmacros.c ini.c log.c -o mac -std=c99 `pkg-config --libs --cflags libmod
 gcc ini_xmacros.c ini.c log.c -o mac -std=gnu99 `pkg-config --libs --cflags libmodbus` -lpthread
 gcc ini_xmacros.c ini.c log.c -o mac -std=gnu99 `pkg-config --libs --cflags libmodbus` -lpthread
 socat -d -d pty,raw,echo=0 pty,raw,echo=0
+$CC ini_xmacros.c ini.c log.c -o mac -std=gnu99 `pkg-config --libs --cflags libmodbus` -lpthread
+$CC ini_xmacros.c ini.c log.c -o mac -std=gnu99 `pkg-config --libs --cflags libmodbus` -lpthread -O2 -D_GNU_SOURCE

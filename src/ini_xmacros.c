@@ -1,3 +1,6 @@
+//For pthread_setname_np
+//#define _GNU_SOURCE             /* See feature_test_macros(7) */
+
 #include <stdio.h>
 #include <modbus.h>
 #include <stdio.h>
@@ -60,22 +63,9 @@ void dump_config(config *cfg)
 }
 
 void update_holding(modbus_mapping_t *mb_mapping) {
-    FILE *f1,*f2;
-    uint32_t t1,t2;
-    //size_t s;
 
-    f1 = fopen("/sys/class/thermal/thermal_zone0/temp","r");
-    fscanf(f1,"%"PRIu32,&t1);
-    t1 = t1/1000;
-    mb_mapping->tab_registers[0] =(uint16_t) t1;
-
-    f2 = fopen("/sys/class/thermal/thermal_zone1/temp","r");
-    fscanf(f2,"%"PRIu32,&t2);
-    t2 = t2/1000;
-    mb_mapping->tab_registers[1] =(uint16_t) t2;
-
-    fclose(f1);
-    fclose(f2);
+    mb_mapping->tab_registers[8] = 0x99;
+    mb_mapping->tab_registers[9] = 0x88;
 }
 void update_temps(modbus_mapping_t *mb_mapping) {
     FILE *f1,*f2;
@@ -148,7 +138,6 @@ void *thread(void *para) {
         snprintf(name, 24, "%s-%s-%s", p->connection_slaveid, p->connection_type, p->connection_port);
     }
     int ret,rc;
-    #define _GNU_SOURCE             /* See feature_test_macros(7) */
 	ret = pthread_setname_np(pthread_self(), name);
 	if (ret == 0) {
 		//log_trace("Thread set name success, tid=%llu", pthread_self());
@@ -164,26 +153,31 @@ void *thread(void *para) {
     uint8_t *request = NULL;//Will contain internal libmodubs data from a request that must be given back to answer
     modbus_t *ctx = NULL;
     modbus_mapping_t *mb_mapping = NULL;
-    int s = -1;
-
+    int socket = -1;
+    //Will be used in reconnection
+    int port = 502;
     int slaveid = -1;
+RECONNECTION:
     if (type == TCP) {
-        int port = atoi(p->connection_port);
+        log_trace("Before new ctx...");
+        port = atoi(p->connection_port);
         ctx = modbus_new_tcp("0.0.0.0", port);
+        //ctx = modbus_new_tcp_pi("0.0.0.0", port);
+        //ctx = modbus_new_tcp_pi("0.0.0.0", p->connection_port);
         if (ctx == NULL) {
-            log_error("Unable to create the libmodbus context");
+            log_error("Unable to create the libmodbus context:%s", strerror( errno ));
             goto THREAD_EXIT;
         }
 
-        request = malloc(MODBUS_TCP_MAX_ADU_LENGTH);
         if(NULL == request) {
-            log_error("TCP malloc Error");
-            goto THREAD_EXIT;
-        } else {
-            log_trace("malloc OK");
+            request = malloc(MODBUS_TCP_MAX_ADU_LENGTH);
+            if(NULL == request) {
+                log_error("TCP malloc Error");
+                goto THREAD_EXIT;
+            } else {
+                log_trace("malloc OK");
+            }
         }
-        //modbus_set_debug(ctx, TRUE);
-        //modbus_set_debug(ctx, TRUE);
 
         slaveid = atoi(p->connection_slaveid);
         ret = modbus_set_slave(ctx, slaveid);//Set slave address
@@ -191,21 +185,23 @@ void *thread(void *para) {
             log_error("modbus_set_slave error");
             goto THREAD_EXIT;
         }
-        //Init the modbus mapping structure, will contain the data
-        //that will be read/write by a client.
-        mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0, MODBUS_MAX_READ_REGISTERS, 0);
-        //mb_mapping = modbus_mapping_new(500, 500, 500, 500);
-        if(mb_mapping == NULL){
-            log_error("Cannot allocate mb_mapping");
-            goto THREAD_EXIT;
+        if(NULL == mb_mapping) {
+            //Init the modbus mapping structure, will contain the data
+            //that will be read/write by a client.
+            mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0, MODBUS_MAX_READ_REGISTERS, 0);
+            //mb_mapping = modbus_mapping_new(500, 500, 500, 500);
+            if(mb_mapping == NULL){
+                log_error("Cannot allocate mb_mapping");
+                goto THREAD_EXIT;
+            }
         }
         //Wait for connection
-        s = modbus_tcp_listen(ctx, 1);
-        if(-1 == s) {
-            log_error("tcp listen:%d error", port);
+        socket  = modbus_tcp_listen(ctx, 1);
+        if(-1 == socket) {
+            log_error("tcp listen port:%d error:%d [%s]", port, errno, strerror( errno ));
             goto THREAD_EXIT;
         }
-        modbus_tcp_accept(ctx, &s);
+        modbus_tcp_accept(ctx, &socket);
     }
     //Set uart configuration and store it into the modbus context structure
     if ( type == RTU ) {
@@ -302,6 +298,12 @@ void *thread(void *para) {
         }
     }
     header_length = modbus_get_header_length(ctx);
+    ret = modbus_set_error_recovery(ctx,
+                          MODBUS_ERROR_RECOVERY_LINK |
+                          MODBUS_ERROR_RECOVERY_PROTOCOL);
+    if ( ret ) {
+        log_error("set_error_recovery failed:%d\n", ret);
+    }
     sleep(1);
     uint8_t count = 0;
     while(1) {
@@ -310,13 +312,36 @@ void *thread(void *para) {
         rc = modbus_receive(ctx, request);
         //log_trace("received rc:%d", rc);
 
+        //Peer Disconnected
         if(rc == -1){
-            log_error("Error in modbus receive:%d, errno:%d", rc, errno);
-            goto THREAD_EXIT;
+            log_error("Error in modbus receive:%d, errno:%d:[%s]", rc, errno, strerror( errno ));
+            ret = modbus_set_error_recovery(ctx,
+                    MODBUS_ERROR_RECOVERY_LINK |
+                    MODBUS_ERROR_RECOVERY_PROTOCOL);
+            if ( ret ) {
+                log_error("set_error_recovery failed:%d\n", ret);
+            }
+            if(type == TCP) {
+                log_error("TCP need to be restart the connection...");
+                close(socket);
+                modbus_close(ctx);
+                modbus_free(ctx);
+                goto RECONNECTION;
+#if 0
+                //Wait for connection
+                s = modbus_tcp_listen(ctx, 1);
+                if(-1 == s) {
+                    log_error("tcp listen:%d error", port);
+                    goto THREAD_EXIT;
+                }
+                modbus_tcp_accept(ctx, &s);
+#endif
+            }
+            //goto THREAD_EXIT;
         }
 
         log_trace("%s: received data length=%d",name, rc);
-#if 0
+#if 1
         //printf("regs[] =\t");
         for(int i = 1; i < 9; i++) { // looks like 1..n index
             printf("%d ", mb_mapping->tab_registers[i]);
@@ -327,6 +352,7 @@ void *thread(void *para) {
         mb_mapping->tab_registers[1] = count;
         mb_mapping->tab_registers[2] = count;
         mb_mapping->tab_registers[3] = count;
+        update_holding(mb_mapping);
 #if 0
         update_temps(mb_mapping);
 #endif
@@ -345,7 +371,15 @@ THREAD_EXIT:
         pthread_exit(NULL);
 }
 
+void sig_handler(int signum){
+
+  //Return type of the handler function should be void
+  log_trace("\nGot signal interrupt, exit...\n");
+  exit(0);
+}
+
 int main(int argc, char* argv[]) {
+     signal(SIGINT,sig_handler); // Register signal handler
     log_set_quiet(LOG_SILIENCE);
 #if 0
     log_trace("Argc is:%d", argc);
