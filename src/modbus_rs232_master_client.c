@@ -21,13 +21,14 @@ int main()
     response_timeout.tv_sec = 10;
     response_timeout.tv_usec = 0;
 
-    ctx = modbus_new_rtu(UART_PATH, 115200, 'N', 8, 1);
+    ctx = modbus_new_rtu(UART_PATH, 9600, 'N', 8, 1);
     if (ctx == NULL) {
         perror("Unable to create the libmodbus context\n");
         return -1;
     }
 
-    modbus_set_response_timeout(ctx, &response_timeout);
+    //modbus_set_response_timeout(ctx, &response_timeout);
+    modbus_set_response_timeout(ctx, 10, 0);
 
     ret = modbus_set_slave(ctx, 1);
     if(ret < 0){

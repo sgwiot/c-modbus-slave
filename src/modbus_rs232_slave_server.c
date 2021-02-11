@@ -55,7 +55,7 @@ int main(int argc, char *argv[]){
 	request= malloc(MODBUS_RTU_MAX_ADU_LENGTH);
 	modbus_set_debug(ctx, TRUE);
 
-	ret = modbus_set_slave(ctx, 3);//Set slave address
+	ret = modbus_set_slave(ctx, 1);//Set slave address
 	if(ret < 0){
 		perror("modbus_set_slave error");
 		return -1;
