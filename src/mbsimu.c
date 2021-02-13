@@ -138,6 +138,7 @@ int set_phtread_name(char *port, char* slaveid, char* type, int type_tcp_rtu, in
         ret = 0;
     } else {
         log_error("Thread set name Error:%s !!",name);
+        ret = -1;
     }
     memcpy(thread_name, name, MAX_P_NAME);
     return ret;
@@ -189,34 +190,6 @@ RECONNECTION:
     } else {
         log_info("Set pthread name:name OK", name);
     }
-#if 0
-    char name[24] = {0};
-    char *device_path = strdup(p->connection_port);
-    if(device_path == NULL) {
-        log_error("strdup error for device path");
-    }
-    //char str[] ="1,2,3,4,5";
-    char *pt;
-    if (type == RTU) {
-        pt = strtok (device_path,"/");
-        while (pt != NULL) {
-            //int a = atoi(pt);
-            //printf("%d\n", a);
-            snprintf(name, 24, "%s-%s-%s", p->connection_slaveid, p->connection_type, pt);
-            pt = strtok (NULL, "/");
-        }
-    } else {
-        snprintf(name, 24, "%s-%s-%s", p->connection_slaveid, p->connection_type, p->connection_port);
-    }
-
-	ret = pthread_setname_np(pthread_self(), name);
-	if (ret == 0) {
-		//log_trace("Thread set name success, tid=%llu", pthread_self());
-		log_trace("Thread set name(%s) success", name);
-    } else {
-        log_error("Thread set name Error:%s !!",name);
-    }
-#endif
     //log_trace("beging loop:%s", name);
     if (type == TCP) {
         log_trace("Before new ctx...");
@@ -383,6 +356,7 @@ RECONNECTION:
     set_phtread_name(p->connection_port, p->connection_slaveid, p->connection_type, type, 1, name);
 
     header_length = modbus_get_header_length(ctx);
+    log_trace("header_length:%d", header_length);
     ret = modbus_set_error_recovery(ctx,
                           MODBUS_ERROR_RECOVERY_LINK |
                           MODBUS_ERROR_RECOVERY_PROTOCOL);
@@ -430,11 +404,10 @@ RECONNECTION:
             //goto THREAD_EXIT;
         }
 
-        log_info("%s: received data length=%d",name, rc);
-#if 0
-        printf("tab regs[] =\t");
+#if 1
+        printf("Hex tab_regs[]=\t");
         //for(int i = 1; i < 9; i++) { // looks like 1..n index
-        for(int i = 0; i < 4; i++) { // looks like 1..n index
+        for(int i = 0; i < 20; i++) { // looks like 1..n index
             printf("%02x ", mb_mapping->tab_registers[i]);
         }
         printf("\n");
@@ -447,7 +420,8 @@ RECONNECTION:
 #if 0
         update_temps(mb_mapping);
 #endif
-        printf("request[] =\t");
+        printf("%s: request received length=%d\t",name, rc);
+        printf("Hex request[] =\t");
         for(int i = 0; i < rc; i++) { // looks like 1..n index
             printf("%02x ", request[i]);
         }
