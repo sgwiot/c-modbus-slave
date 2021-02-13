@@ -88,6 +88,23 @@ void update_temps(modbus_mapping_t *mb_mapping) {
     fclose(f2);
 }
 
+int model_handler(modbus_mapping_t *mb_mapping, uint8_t *request, int request_len, int header_length) {
+    log_info("model handler:header_length:%d, request_len:%d type:%d", header_length, request_len, request[header_length]);
+    //Reading holding register
+    if(0x03 == request[header_length]) {
+        //Reading the temperature, starting address 0x00
+        if(0x00 == request[2 + header_length] && 0x00 == request[1 + header_length]) {
+            log_info("Master read 03:00 holding registger, simu temp value");
+            //Temp
+            mb_mapping->tab_registers[0] = 0x12;
+            mb_mapping->tab_registers[1] = 0x34;
+            //H
+            mb_mapping->tab_registers[2] = 0x23;
+            mb_mapping->tab_registers[3] = 0x45;
+        }
+    }
+}
+
 #define TCP 1
 #define RTU 2
 
@@ -387,15 +404,6 @@ RECONNECTION:
                 modbus_close(ctx);
                 modbus_free(ctx);
                 goto RECONNECTION;
-#if 0
-                //Wait for connection
-                s = modbus_tcp_listen(ctx, 1);
-                if(-1 == s) {
-                    log_error("tcp listen:%d error", port);
-                    goto THREAD_EXIT;
-                }
-                modbus_tcp_accept(ctx, &s);
-#endif
             } else if(type == RTU){
                 set_phtread_name(p->connection_port, p->connection_slaveid, p->connection_type, type, 0, name);
             } else {
@@ -412,11 +420,14 @@ RECONNECTION:
         }
         printf("\n");
 #endif
+#if 0
         mb_mapping->tab_registers[0] = count;
         mb_mapping->tab_registers[1] = count;
         mb_mapping->tab_registers[2] = count;
         mb_mapping->tab_registers[3] = count;
         update_holding(mb_mapping);
+#endif
+        mb_mapping->tab_registers[4] = count;
 #if 0
         update_temps(mb_mapping);
 #endif
@@ -427,6 +438,7 @@ RECONNECTION:
         }
         printf("\n");
 
+        model_handler(mb_mapping, request, rc, header_length);
         ret = modbus_reply(ctx,request,rc,mb_mapping);//rc, request size must be given back to modbus_reply as well as "request" data
         if(ret < 0){
             log_error("modbus reply error:%d, continue next receive... !!!", ret);
