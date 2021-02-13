@@ -158,6 +158,7 @@ int set_phtread_name(char *port, char* slaveid, char* type, int type_tcp_rtu, in
         ret = -1;
     }
     memcpy(thread_name, name, MAX_P_NAME);
+    free(device_path);
     return ret;
 }
 
