@@ -18,3 +18,6 @@ gcc ini_xmacros.c ini.c log.c -o mac -std=gnu99 `pkg-config --libs --cflags libm
 socat -d -d pty,raw,echo=0 pty,raw,echo=0
 $CC ini_xmacros.c ini.c log.c -o mac -std=gnu99 `pkg-config --libs --cflags libmodbus` -lpthread
 $CC ini_xmacros.c ini.c log.c -o mac -std=gnu99 `pkg-config --libs --cflags libmodbus` -lpthread -O2 -D_GNU_SOURCE
+PORT=6662
+sed "s/6666/$PORT/" tcp_6662.ini
+PORT=`basename tcp_6662.ini | awk -F '_' '{print $2}' | awk -F '.' '{print $1 }' `
