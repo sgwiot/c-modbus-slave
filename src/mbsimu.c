@@ -91,16 +91,32 @@ void update_temps(modbus_mapping_t *mb_mapping) {
 int model_handler(modbus_mapping_t *mb_mapping, uint8_t *request, int request_len, int header_length) {
     log_info("model handler:header_length:%d, request_len:%d type:%d", header_length, request_len, request[header_length]);
     //Reading holding register
+    static unsigned int temp;
+    static unsigned int humi;
+    if(0 < humi && humi < 1000) {
+        humi+=5;
+    } else {
+        humi = 500;
+    }
+
+    if(0 < temp && temp < 100) {
+        temp++;
+    } else {
+        temp = 50;
+    }
     if(0x03 == request[header_length]) {
         //Reading the temperature, starting address 0x00
         if(0x00 == request[2 + header_length] && 0x00 == request[1 + header_length]) {
             log_info("Master read 03:00 holding registger, simu temp value");
             //Temp
-            mb_mapping->tab_registers[0] = 0x12;
-            mb_mapping->tab_registers[1] = 0x34;
+            //mb_mapping->tab_registers[0] = 0x292;
+            //mb_mapping->tab_registers[1] = 0xff9b;
+            mb_mapping->tab_registers[0] = humi;
+            mb_mapping->tab_registers[1] = temp;
+            //mb_mapping->tab_registers[1] = 0x2;
             //H
-            mb_mapping->tab_registers[2] = 0x23;
-            mb_mapping->tab_registers[3] = 0x45;
+            mb_mapping->tab_registers[2] = 0xff;
+            mb_mapping->tab_registers[3] = 0x9b;
         }
     }
 }
@@ -111,17 +127,14 @@ int model_handler(modbus_mapping_t *mb_mapping, uint8_t *request, int request_le
 /*********************************************************************
  * Set thread name
  *********************************************************************/
-//To large would fail, such as 80
-// 255-rtu-/dev/ttyUSB127 , max 22
-#define MAX_P_NAME 30
+//To large would fail, such as 22, so we use 19
+//Connected: 255rtuttyUSB127-con , max 26
+#define MAX_P_NAME 19
 int set_phtread_name(char *port, char* slaveid, char* type, int type_tcp_rtu, int connected, char* thread_name) {
     int ret = -1;
     /*********************************************************************
      * Set thread name: connected
      *********************************************************************/
-    //To large would fail, such as 80
-    //NoConnected: 255-rtu-/dev/ttyUSB127 , max 22
-    //Connected: 255-rtu-/dev/ttyUSB127-con , max 26
     char name[MAX_P_NAME] = {0};
     char *device_path = strdup(port);
     if(device_path == NULL) {
@@ -135,26 +148,27 @@ int set_phtread_name(char *port, char* slaveid, char* type, int type_tcp_rtu, in
             //int a = atoi(pt);
             //printf("%d\n", a);
             if(connected) {
-                snprintf(name, MAX_P_NAME, "%s-%s-%s-con", slaveid, type, pt);
+                snprintf(name, MAX_P_NAME, "%s%s%s-con", slaveid, type, pt);
             } else {
-                snprintf(name, MAX_P_NAME, "%s-%s-%s", slaveid, type, pt);
+                snprintf(name, MAX_P_NAME, "%s%s%s", slaveid, type, pt);
             }
             pt = strtok (NULL, "/");
         }
     } else {
             if(connected) {
-                snprintf(name, MAX_P_NAME, "%s-%s-%s-con", slaveid, type, port);
+                snprintf(name, MAX_P_NAME, "%s%s%s-con", slaveid, type, port);
             } else {
-                snprintf(name, MAX_P_NAME, "%s-%s-%s", slaveid, type, port);
+                snprintf(name, MAX_P_NAME, "%s%s%s", slaveid, type, port);
             }
     }
 	ret = pthread_setname_np(pthread_self(), name);
+    //int err = errno;
 	if (ret == 0) {
 		//log_trace("Thread set name success, tid=%llu", pthread_self());
 		log_trace("Thread set name(%s) success", name);
         ret = 0;
     } else {
-        log_error("Thread set name Error:%s !!",name);
+        log_error("Thread set name Error:%s, errno:%d!!", name, ret);
         ret = -1;
     }
     memcpy(thread_name, name, MAX_P_NAME);

@@ -1,7 +1,7 @@
 TARGET=mbsimu
 #TARGET=mbsimu zlibtest
 
-CFLAGS=-std=gnu99 -O2 -D_GNU_SOURCE
+CFLAGS=-std=gnu99 -O2 -D_GNU_SOURCE -DLOG_USE_COLOR -g
 #CFLAGS=-D_REENTRANT  -I$(PKG_CONFIG_SYSROOT_DIR)/usr/include/alsa-lib
 #CFLAGS1=-D_REENTRANT  -I$(PKG_CONFIG_SYSROOT_DIR)/usr/include/libmad
 LDFLAGS=-lpthread
