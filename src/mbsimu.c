@@ -81,10 +81,21 @@ void update_temps(modbus_mapping_t *mb_mapping) {
     t1 = t1/1000;
     mb_mapping->tab_registers[TEMP_0] =(uint16_t) t1;
 
+    //iMX6 has no zone1
+#if 0
+    /sys/bus/cpu/devices/cpu0/cpufreq/cpuinfo_cur_freq
     f2 = fopen("/sys/class/thermal/thermal_zone1/temp","r");
     ret = fscanf(f2,"%"PRIu32,&t2);
     t2 = t2/1000;
     mb_mapping->tab_registers[TEMP_1] =(uint16_t) t2;
+#endif
+
+    //imx6ul cpu freq
+    f2 = fopen("/sys/bus/cpu/devices/cpu0/cpufreq/cpuinfo_cur_freq","r");
+    ret = fscanf(f2,"%"PRIu32,&t2);
+    t2 = t2/1000;
+    mb_mapping->tab_registers[TEMP_1] =(uint16_t) t2;
+    //mb_mapping->tab_registers[TEMP_1] =(uint16_t) t1;
 
     fclose(f1);
     fclose(f2);
