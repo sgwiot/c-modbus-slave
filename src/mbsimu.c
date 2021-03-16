@@ -74,15 +74,17 @@ void update_temps(modbus_mapping_t *mb_mapping) {
     //size_t s;
     int ret = -1;
 
+#define TEMP_0 1
+#define TEMP_1 2
     f1 = fopen("/sys/class/thermal/thermal_zone0/temp","r");
     ret = fscanf(f1,"%"PRIu32,&t1);
     t1 = t1/1000;
-    mb_mapping->tab_registers[0] =(uint16_t) t1;
+    mb_mapping->tab_registers[TEMP_0] =(uint16_t) t1;
 
     f2 = fopen("/sys/class/thermal/thermal_zone1/temp","r");
     ret = fscanf(f2,"%"PRIu32,&t2);
     t2 = t2/1000;
-    mb_mapping->tab_registers[1] =(uint16_t) t2;
+    mb_mapping->tab_registers[TEMP_1] =(uint16_t) t2;
 
     fclose(f1);
     fclose(f2);
@@ -414,6 +416,7 @@ RECONNECTION:
                 log_error("set_error_recovery failed:%d\n", ret);
             }
             if(type == TCP) {
+                modbus_flush(ctx);
                 log_error("TCP need to be restart the connection...");
                 close(socket);
                 modbus_close(ctx);
@@ -443,7 +446,7 @@ RECONNECTION:
         update_holding(mb_mapping);
 #endif
         mb_mapping->tab_registers[4] = count;
-#if 0
+#if 1
         update_temps(mb_mapping);
 #endif
         printf("%s: request received length=%d\t",name, rc);
